@@ -21,6 +21,15 @@ A Redis clone that implements the SET and GET commands.
 - The "QUIT" command will close the connection.
 
 ```go
+package main
+
+import (
+    "errors"
+    "log"
+    "sync"
+)
+
+func main() {
     var mu sync.RWMutex
     kvs := make(map[string]string)
     s := NewServer()
@@ -53,6 +62,7 @@ A Redis clone that implements the SET and GET commands.
     if err := s.ListenAndServe(":6380"); err != nil {
         log.Fatal(err)
     }
+}
 ```
 
 ## Clients
