@@ -30,7 +30,6 @@ Example Server
 
 A Redis clone that implements the SET and GET commands.
 
-- The server runs on port 6380.
 - You can interact using the Redis CLI (redis-cli). http://redis.io/download
 - Or, use the telnet by typing in "telnet localhost 6380" and type in "set key value" and "get key".
 - Or, use a client library such as http://github.com/garyburd/redigo
@@ -76,7 +75,7 @@ func main() {
         }
         return true
     })
-    if err := s.ListenAndServe(":6380"); err != nil {
+    if err := s.ListenAndServe(":6379"); err != nil {
         log.Fatal(err)
     }
 }
