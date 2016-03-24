@@ -14,7 +14,7 @@ The RESP protocol has the advantages of being human readable and with performanc
 Installation
 ------------
 
-Install Redigo using the "go get" command:
+Install resp using the "go get" command:
 
     go get github.com/tidwall/resp
 
