@@ -1,17 +1,28 @@
-RESP
+Resp
 ====
 
 [![Build Status](https://travis-ci.org/tidwall/resp.svg?branch=master)](https://travis-ci.org/tidwall/resp)
 [![GoDoc](https://godoc.org/github.com/tidwall/resp?status.svg)](https://godoc.org/github.com/tidwall/resp)
 
-RESP is a [Go](http://golang.org/) library that provides a reader, writer, and server implementation for the [Redis RESP Protocol](http://redis.io/topics/protocol).
+Resp is a [Go](http://golang.org/) library that provides a reader, writer, and server implementation for the [Redis RESP Protocol](http://redis.io/topics/protocol).
 
-RESP is short for **REdis Serialization Protocol**.
+Resp is short for **REdis Serialization Protocol**.
 While the protocol was designed specifically for Redis, it can be used for other client-server software projects.
 
-The RESP protocol has the advantages of being human readable and with performance of a binary protocol.
+The Resp protocol has the advantages of being human readable and with performance of a binary protocol.
 
-## Example Server
+Installation
+------------
+
+Install Redigo using the "go get" command:
+
+    go get github.com/tidwall/resp
+
+The Go distribution is Resp's only dependency.
+
+Example Server
+--------------
+
 A Redis clone that implements the SET and GET commands.
 
 - The server runs on port 6380.
@@ -27,13 +38,14 @@ import (
     "errors"
     "log"
     "sync"
+    "github.com/tidwall/resp"
 )
 
 func main() {
     var mu sync.RWMutex
     kvs := make(map[string]string)
-    s := NewServer()
-    s.HandleFunc("set", func(conn *Conn, args []Value) bool {
+    s := resp.NewServer()
+    s.HandleFunc("set", func(conn *resp.Conn, args []resp.Value) bool {
         if len(args) != 3 {
             conn.WriteError(errors.New("ERR wrong number of arguments for 'set' command"))
         } else {
@@ -44,7 +56,7 @@ func main() {
         }
         return true
     })
-    s.HandleFunc("get", func(conn *Conn, args []Value) bool {
+    s.HandleFunc("get", func(conn *resp.Conn, args []resp.Value) bool {
         if len(args) != 2 {
             conn.WriteError(errors.New("ERR wrong number of arguments for 'get' command"))
         } else {
@@ -65,15 +77,18 @@ func main() {
 }
 ```
 
-## Clients
+Clients
+-------
 
-There are bunches of [RESP Clients](http://redis.io/clients). Most any client that supports Redis will support this implementation.
+There are bunches of [Resp Clients](http://redis.io/clients). Most any client that supports Redis will support this implementation.
 
-## Contact
+Contact
+-------
 
 Josh Baker [@tidwall](http://twitter.com/tidwall)
 
-## License
+License
+-------
 
 Tile38 source code is available under the MIT [License](/LICENSE).
 
