@@ -1,15 +1,15 @@
-Resp
+RESP
 ====
 
 [![Build Status](https://travis-ci.org/tidwall/resp.svg?branch=master)](https://travis-ci.org/tidwall/resp)
 [![GoDoc](https://godoc.org/github.com/tidwall/resp?status.svg)](https://godoc.org/github.com/tidwall/resp)
 
-Resp is a [Go](http://golang.org/) library that provides a reader, writer, and server implementation for the [Redis RESP Protocol](http://redis.io/topics/protocol).
+RESP is a [Go](http://golang.org/) library that provides a reader, writer, and server implementation for the [Redis RESP Protocol](http://redis.io/topics/protocol).
 
-Resp is short for **REdis Serialization Protocol**.
+RESP is short for **REdis Serialization Protocol**.
 While the protocol was designed specifically for Redis, it can be used for other client-server software projects.
 
-The Resp protocol has the advantages of being human readable and with performance of a binary protocol.
+The RESP protocol has the advantages of being human readable and with performance of a binary protocol.
 
 Installation
 ------------
@@ -19,6 +19,11 @@ Install Redigo using the "go get" command:
     go get github.com/tidwall/resp
 
 The Go distribution is Resp's only dependency.
+
+Documentation
+-------------
+
+- [API Reference](http://godoc.org/github.com/tidwall/resp)
 
 Example Server
 --------------
@@ -80,7 +85,7 @@ func main() {
 Clients
 -------
 
-There are bunches of [Resp Clients](http://redis.io/clients). Most any client that supports Redis will support this implementation.
+There are bunches of [RESP Clients](http://redis.io/clients). Most any client that supports Redis will support this implementation.
 
 Contact
 -------
