@@ -136,25 +136,30 @@ func NewReader(rd io.Reader) *Reader {
 func (rd *Reader) ReadValue() (Value, error) {
 	b, err := rd.bufrd.ReadByte()
 	if err != nil {
-		return nullValue, nil
+		return nullValue, err
 	}
+	var v Value
 	switch b {
 	default:
 		if err := rd.bufrd.UnreadByte(); err != nil {
 			return nullValue, err
 		}
-		return rd.readTelnetMultiBulk()
+		v, err = rd.readTelnetMultiBulk()
 	case '+':
-		return rd.readSimpleString()
+		v, err = rd.readSimpleString()
 	case '-':
-		return rd.readError()
+		v, err = rd.readError()
 	case ':':
-		return rd.readInteger()
+		v, err = rd.readInteger()
 	case '$':
-		return rd.readBulkString()
+		v, err = rd.readBulkString()
 	case '*':
-		return rd.readArray()
+		v, err = rd.readArray()
 	}
+	if err == io.EOF {
+		return nullValue, io.ErrUnexpectedEOF
+	}
+	return v, err
 }
 
 // ReadMultiBulk reads the next multi bulk Value from Reader.
@@ -165,15 +170,20 @@ func (rd *Reader) ReadMultiBulk() (Value, error) {
 	if err != nil {
 		return nullValue, err
 	}
+	var v Value
 	switch b {
 	default:
 		if err := rd.bufrd.UnreadByte(); err != nil {
 			return nullValue, err
 		}
-		return rd.readTelnetMultiBulk()
+		v, err = rd.readTelnetMultiBulk()
 	case '*':
-		return rd.readMultiBulk()
+		v, err = rd.readMultiBulk()
 	}
+	if err == io.EOF {
+		return nullValue, io.ErrUnexpectedEOF
+	}
+	return v, err
 }
 
 func (rd *Reader) readLine(requireCRLF bool) (string, error) {
