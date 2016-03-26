@@ -56,12 +56,4 @@ func TestABC(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-
-	c, err = f.Count()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c != i {
-		t.Fatalf("count is %d, expect %d", c, i)
-	}
 }

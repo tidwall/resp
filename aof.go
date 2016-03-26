@@ -37,7 +37,6 @@ var errClosed = errors.New("closed")
 type AOF struct {
 	mu     sync.Mutex
 	f      *os.File
-	count  int
 	closed bool
 	rd     *Reader
 	policy SyncPolicy
@@ -101,23 +100,7 @@ func (aof *AOF) Close() error {
 	return nil
 }
 
-// Count returns the number of values in the file.
-func (aof *AOF) Count() (int, error) {
-	aof.mu.Lock()
-	defer aof.mu.Unlock()
-	if aof.closed {
-		return 0, errClosed
-	}
-	if !aof.atEnd {
-		if err := aof.readValues(nil); err != nil {
-			return 0, err
-		}
-	}
-	return aof.count, nil
-}
-
 func (aof *AOF) readValues(iterator func(v Value)) error {
-	aof.count = 0
 	aof.atEnd = false
 	if _, err := aof.f.Seek(0, 0); err != nil {
 		return err
@@ -134,7 +117,6 @@ func (aof *AOF) readValues(iterator func(v Value)) error {
 		if iterator != nil {
 			iterator(v)
 		}
-		aof.count++
 	}
 	if _, err := aof.f.Seek(0, 2); err != nil {
 		return err
@@ -166,7 +148,6 @@ func (aof *AOF) Append(v Value) error {
 	if aof.policy == Always {
 		aof.f.Sync()
 	}
-	aof.count++
 	return nil
 }
 
