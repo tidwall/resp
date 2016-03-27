@@ -129,6 +129,9 @@ type Reader struct {
 
 // NewReader returns a Reader for reading Value types.
 func NewReader(rd io.Reader) *Reader {
+	if rd, ok := rd.(*bufio.Reader); ok {
+		return &Reader{rd}
+	}
 	return &Reader{bufio.NewReader(rd)}
 }
 
@@ -165,25 +168,28 @@ func (rd *Reader) ReadValue() (Value, error) {
 // ReadMultiBulk reads the next multi bulk Value from Reader.
 // A multi bulk value is a RESP array that contains one or more bulk strings.
 // For more information on RESP arrays and strings please see http://redis.io/topics/protocol.
-func (rd *Reader) ReadMultiBulk() (Value, error) {
+func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, err error) {
 	b, err := rd.bufrd.ReadByte()
 	if err != nil {
-		return nullValue, err
+		return nullValue, telnet, err
 	}
 	var v Value
 	switch b {
 	default:
 		if err := rd.bufrd.UnreadByte(); err != nil {
-			return nullValue, err
+			return nullValue, telnet, err
 		}
 		v, err = rd.readTelnetMultiBulk()
+		if err == nil {
+			telnet = true
+		}
 	case '*':
 		v, err = rd.readMultiBulk()
 	}
 	if err == io.EOF {
-		return nullValue, io.ErrUnexpectedEOF
+		return nullValue, telnet, io.ErrUnexpectedEOF
 	}
-	return v, err
+	return v, telnet, err
 }
 
 func (rd *Reader) readLine(requireCRLF bool) (string, error) {

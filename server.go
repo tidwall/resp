@@ -95,7 +95,7 @@ func (s *Server) handleConn(nconn net.Conn) error {
 		}
 	}
 	for {
-		v, err := conn.ReadMultiBulk()
+		v, _, err := conn.ReadMultiBulk()
 		if err != nil {
 			return err
 		}
