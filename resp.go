@@ -52,7 +52,18 @@ func (v Value) Integer() int {
 	case int:
 		return v
 	}
-	return 0
+	s := v.String()
+	i, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		f, _ := strconv.ParseFloat(s, 64)
+		return int(f)
+	}
+	return int(i)
+}
+
+// Bool converts Value to an bool. If Value cannot be converted, false is returned.
+func (v Value) Bool() bool {
+	return v.Integer() != 0
 }
 
 // Bytes converts the Value to a byte array. An empty string is converted to a non-nil empty byte array. If it's a RESP Null value, nil is returned.
@@ -99,6 +110,9 @@ func (v Value) MarshalRESP() ([]byte, error) {
 	}
 	switch v.typ {
 	default:
+		if v.typ == 0 && v.base == nil {
+			return []byte("$-1\r\n"), nil
+		}
 		return nil, errors.New("unknown resp type encountered")
 	case '+', '-', ':':
 		return []byte(string(v.typ) + v.String() + "\r\n"), nil
@@ -475,8 +489,57 @@ func ErrorValue(err error) Value { return Value{'-', err, nil} }
 // IntegerValue returns a RESP integer.
 func IntegerValue(i int) Value { return Value{':', i, nil} }
 
+// BoolValue returns a RESP integer representation of a bool.
+func BoolValue(t bool) Value {
+	if t {
+		return Value{':', 1, nil}
+	}
+	return Value{':', 0, nil}
+}
+
+// FloatValue returns a RESP bulk string representation of a float.
+func FloatValue(f float64) Value { return StringValue(strconv.FormatFloat(f, 'f', -1, 64)) }
+
 // ArrayValue returns a RESP array.
 func ArrayValue(vals []Value) Value { return Value{'*', vals, nil} }
+
+// AnyValue returns a RESP value from an interface. This function infers the types. Arrays are not allowed.
+func AnyValue(v interface{}) Value {
+	switch v := v.(type) {
+	default:
+		return StringValue(fmt.Sprintf("%v", v))
+	case int:
+		return IntegerValue(int(v))
+	case uint:
+		return IntegerValue(int(v))
+	case int8:
+		return IntegerValue(int(v))
+	case uint8:
+		return IntegerValue(int(v))
+	case int16:
+		return IntegerValue(int(v))
+	case uint16:
+		return IntegerValue(int(v))
+	case int32:
+		return IntegerValue(int(v))
+	case uint32:
+		return IntegerValue(int(v))
+	case int64:
+		return IntegerValue(int(v))
+	case uint64:
+		return IntegerValue(int(v))
+	case bool:
+		return BoolValue(v)
+	case float32:
+		return FloatValue(float64(v))
+	case float64:
+		return FloatValue(float64(v))
+	case []byte:
+		return BytesValue(v)
+	case string:
+		return StringValue(v)
+	}
+}
 
 // MultiBulkValue returns a RESP array which contains one or more bulk strings.
 // For more information on RESP arrays and strings please see http://redis.io/topics/protocol.
