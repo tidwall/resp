@@ -25,7 +25,7 @@ func TestLotsaRandomness(t *testing.T) {
 	}
 	r := NewReader(bytes.NewBuffer(buf.Bytes()))
 	for i := 0; i < n; i++ {
-		v, err := r.ReadValue()
+		v, _, err := r.ReadValue()
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -179,17 +179,17 @@ func (rd *Reader) readFull(b []byte) (n int, err error) {
 }
 
 // ReadValue reads the next Value from Reader.
-func (rd *Reader) ReadValue() (Value, error) {
+func (rd *Reader) ReadValue() (value Value, n int, err error) {
 	rd.valbuf.Reset()
 	b, err := rd.readByte()
 	if err != nil {
-		return nullValue, err
+		return nullValue, n, err
 	}
 	var v Value
 	switch b {
 	default:
 		if err := rd.unreadByte(); err != nil {
-			return nullValue, err
+			return nullValue, n, err
 		}
 		v, err = rd.readTelnetMultiBulk()
 	case '+':
@@ -204,26 +204,26 @@ func (rd *Reader) ReadValue() (Value, error) {
 		v, err = rd.readArray()
 	}
 	if err == io.EOF {
-		return nullValue, io.ErrUnexpectedEOF
+		return nullValue, n, io.ErrUnexpectedEOF
 	}
 	v.buf = rd.valbuf.Bytes()
-	return v, err
+	return v, len(v.buf), err
 }
 
 // ReadMultiBulk reads the next multi bulk Value from Reader.
 // A multi bulk value is a RESP array that contains one or more bulk strings.
 // For more information on RESP arrays and strings please see http://redis.io/topics/protocol.
-func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, err error) {
+func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, n int, err error) {
 	rd.valbuf.Reset()
 	b, err := rd.readByte()
 	if err != nil {
-		return nullValue, telnet, err
+		return nullValue, telnet, n, err
 	}
 	var v Value
 	switch b {
 	default:
 		if err := rd.unreadByte(); err != nil {
-			return nullValue, telnet, err
+			return nullValue, telnet, n, err
 		}
 		v, err = rd.readTelnetMultiBulk()
 		if err == nil {
@@ -233,10 +233,10 @@ func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, err error) {
 		v, err = rd.readMultiBulk()
 	}
 	if err == io.EOF {
-		return nullValue, telnet, io.ErrUnexpectedEOF
+		return nullValue, telnet, n, io.ErrUnexpectedEOF
 	}
 	v.buf = rd.valbuf.Bytes()
-	return v, telnet, err
+	return v, telnet, len(v.buf), err
 }
 
 func (rd *Reader) readLine(requireCRLF bool) (string, error) {

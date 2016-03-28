@@ -107,7 +107,7 @@ func (aof *AOF) readValues(iterator func(v Value)) error {
 	}
 	rd := NewReader(aof.f)
 	for {
-		v, err := rd.ReadValue()
+		v, _, err := rd.ReadValue()
 		if err != nil {
 			if err == io.EOF {
 				break

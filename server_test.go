@@ -40,7 +40,7 @@ func TestServer(t *testing.T) {
 			if err := conn.WriteMultiBulk("PING"); err != nil {
 				t.Fatal(err)
 			}
-			val, err := conn.ReadValue()
+			val, _, err := conn.ReadValue()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -54,7 +54,7 @@ func TestServer(t *testing.T) {
 			if err := conn.WriteMultiBulk("SET", key, 123.4); err != nil {
 				t.Fatal(err)
 			}
-			val, err = conn.ReadValue()
+			val, _, err = conn.ReadValue()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestServer(t *testing.T) {
 			if err := conn.WriteMultiBulk("GET", key); err != nil {
 				t.Fatal(err)
 			}
-			val, err = conn.ReadValue()
+			val, _, err = conn.ReadValue()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestServer(t *testing.T) {
 			if err := conn.WriteMultiBulk("QUIT"); err != nil {
 				t.Fatal(err)
 			}
-			val, err = conn.ReadValue()
+			val, _, err = conn.ReadValue()
 			if err != nil {
 				t.Fatal(err)
 			}
