@@ -36,6 +36,9 @@ func TestLotsaRandomness(t *testing.T) {
 		if string(resp) != anys[i] {
 			t.Fatalf("resp failed to remarshal #%d\n-- original --\n%s\n-- remarshalled --\n%s\n-- done --", i, anys[i], string(resp))
 		}
+		if &resp[0] != &v.buf[0] {
+			t.Fatalf("resp failed to used original buffer #%d\n", i)
+		}
 	}
 }
 

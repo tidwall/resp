@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-var nullValue = Value{0, nil}
+var nullValue = Value{0, nil, nil}
 
 type errProtocol struct{ msg string }
 
@@ -19,8 +19,9 @@ func (err errProtocol) Error() string {
 
 // Value represents the data of a valid RESP type.
 type Value struct {
-	typ  byte
-	base interface{}
+	typ  byte        // the RESP type
+	base interface{} // underlying base value
+	buf  []byte      // exact bytes representation when parsed.
 }
 
 // String converts Value to a string.
@@ -93,6 +94,9 @@ func (v Value) Type() byte {
 // MarshalRESP returns the original serialized byte representation of Value.
 // For more information on this format please see http://redis.io/topics/protocol.
 func (v Value) MarshalRESP() ([]byte, error) {
+	if v.buf != nil {
+		return v.buf, nil
+	}
 	switch v.typ {
 	default:
 		return nil, errors.New("unknown resp type encountered")
@@ -124,27 +128,67 @@ func (v Value) MarshalRESP() ([]byte, error) {
 
 // Reader is a specialized RESP Value type reader.
 type Reader struct {
-	bufrd *bufio.Reader
+	bufrd  *bufio.Reader
+	valbuf *bytes.Buffer
 }
 
 // NewReader returns a Reader for reading Value types.
 func NewReader(rd io.Reader) *Reader {
 	if rd, ok := rd.(*bufio.Reader); ok {
-		return &Reader{rd}
+		return &Reader{
+			bufrd:  rd,
+			valbuf: &bytes.Buffer{},
+		}
 	}
-	return &Reader{bufio.NewReader(rd)}
+	return &Reader{
+		bufrd:  bufio.NewReader(rd),
+		valbuf: &bytes.Buffer{},
+	}
+}
+
+func (rd *Reader) readByte() (c byte, err error) {
+	c, err = rd.bufrd.ReadByte()
+	if err == nil {
+		rd.valbuf.WriteByte(c)
+	}
+	return c, err
+}
+
+func (rd *Reader) readBytes(c byte) (b []byte, err error) {
+	b, err = rd.bufrd.ReadBytes(c)
+	if err == nil {
+		rd.valbuf.Write(b)
+	}
+	return b, err
+}
+
+func (rd *Reader) unreadByte() (err error) {
+	err = rd.bufrd.UnreadByte()
+	if err == nil {
+		rd.valbuf.Truncate(rd.valbuf.Len() - 1)
+	}
+	return err
+}
+
+func (rd *Reader) readFull(b []byte) (n int, err error) {
+	n, err = io.ReadFull(rd.bufrd, b)
+	if err == nil {
+		rd.valbuf.Write(b)
+	}
+	return n, err
 }
 
 // ReadValue reads the next Value from Reader.
 func (rd *Reader) ReadValue() (Value, error) {
-	b, err := rd.bufrd.ReadByte()
+	rd.valbuf.Reset()
+	b, err := rd.readByte()
 	if err != nil {
 		return nullValue, err
 	}
 	var v Value
 	switch b {
 	default:
-		if err := rd.bufrd.UnreadByte(); err != nil {
+		if err := rd.unreadByte(); err != nil {
 			return nullValue, err
 		}
 		v, err = rd.readTelnetMultiBulk()
@@ -162,6 +206,7 @@ func (rd *Reader) ReadValue() (Value, error) {
 	if err == io.EOF {
 		return nullValue, io.ErrUnexpectedEOF
 	}
+	v.buf = rd.valbuf.Bytes()
 	return v, err
 }
 
@@ -169,14 +214,15 @@ func (rd *Reader) ReadValue() (Value, error) {
 // A multi bulk value is a RESP array that contains one or more bulk strings.
 // For more information on RESP arrays and strings please see http://redis.io/topics/protocol.
 func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, err error) {
-	b, err := rd.bufrd.ReadByte()
+	rd.valbuf.Reset()
+	b, err := rd.readByte()
 	if err != nil {
 		return nullValue, telnet, err
 	}
 	var v Value
 	switch b {
 	default:
-		if err := rd.bufrd.UnreadByte(); err != nil {
+		if err := rd.unreadByte(); err != nil {
 			return nullValue, telnet, err
 		}
 		v, err = rd.readTelnetMultiBulk()
@@ -189,6 +235,7 @@ func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, err error) {
 	if err == io.EOF {
 		return nullValue, telnet, io.ErrUnexpectedEOF
 	}
+	v.buf = rd.valbuf.Bytes()
 	return v, telnet, err
 }
 
@@ -196,7 +243,7 @@ func (rd *Reader) readLine(requireCRLF bool) (string, error) {
 	if requireCRLF {
 		var line []byte
 		for {
-			bline, err := rd.bufrd.ReadBytes('\r')
+			bline, err := rd.readBytes('\r')
 			if err != nil {
 				return "", err
 			}
@@ -205,19 +252,19 @@ func (rd *Reader) readLine(requireCRLF bool) (string, error) {
 			} else {
 				line = append(line, bline...)
 			}
-			b, err := rd.bufrd.ReadByte()
+			b, err := rd.readByte()
 			if err != nil {
 				return "", err
 			}
 			if b == '\n' {
 				return string(line[:len(line)-1]), nil
 			}
-			if err := rd.bufrd.UnreadByte(); err != nil {
+			if err := rd.unreadByte(); err != nil {
 				return "", err
 			}
 		}
 	}
-	line, err := rd.bufrd.ReadBytes('\n')
+	line, err := rd.readBytes('\n')
 	if err != nil {
 		return "", err
 	}
@@ -232,7 +279,7 @@ func (rd *Reader) readTelnetMultiBulk() (Value, error) {
 	var bline []byte
 	var quote, mustspace bool
 	for {
-		b, err := rd.bufrd.ReadByte()
+		b, err := rd.readByte()
 		if err != nil {
 			return nullValue, err
 		}
@@ -249,7 +296,7 @@ func (rd *Reader) readTelnetMultiBulk() (Value, error) {
 			if quote {
 				bline = append(bline, b)
 			} else {
-				values = append(values, Value{'$', string(bline)})
+				values = append(values, Value{'$', string(bline), nil})
 				bline = nil
 			}
 		} else if b == '"' {
@@ -269,10 +316,10 @@ func (rd *Reader) readTelnetMultiBulk() (Value, error) {
 		return nullValue, &errProtocol{"unbalanced quotes in request"}
 	}
 	if len(bline) > 0 {
-		values = append(values, Value{'$', string(bline)})
+		values = append(values, Value{'$', string(bline), nil})
 	}
 
-	return Value{'*', values}, nil
+	return Value{'*', values, nil}, nil
 }
 
 func (rd *Reader) readSimpleString() (Value, error) {
@@ -280,7 +327,7 @@ func (rd *Reader) readSimpleString() (Value, error) {
 	if err != nil {
 		return nullValue, err
 	}
-	return Value{'+', line}, nil
+	return Value{'+', line, nil}, nil
 }
 
 func (rd *Reader) readError() (Value, error) {
@@ -288,7 +335,7 @@ func (rd *Reader) readError() (Value, error) {
 	if err != nil {
 		return nullValue, err
 	}
-	return Value{'-', errors.New(line)}, nil
+	return Value{'-', errors.New(line), nil}, nil
 }
 
 func (rd *Reader) readInteger() (Value, error) {
@@ -300,7 +347,7 @@ func (rd *Reader) readInteger() (Value, error) {
 	if err != nil {
 		return nullValue, &errProtocol{"invalid integer"}
 	}
-	return Value{':', int(n)}, nil
+	return Value{':', int(n), nil}, nil
 }
 
 func (rd *Reader) readBulkString() (Value, error) {
@@ -313,23 +360,23 @@ func (rd *Reader) readBulkString() (Value, error) {
 		return nullValue, &errProtocol{"invalid bulk length"}
 	}
 	if n < 0 {
-		return Value{'$', nil}, nil
+		return Value{'$', nil, nil}, nil
 	}
 	bline := make([]byte, int(n))
-	if _, err := io.ReadFull(rd.bufrd, bline); err != nil {
+	if _, err := rd.readFull(bline); err != nil {
 		return nullValue, err
 	}
-	if b, err := rd.bufrd.ReadByte(); err != nil {
+	if b, err := rd.readByte(); err != nil {
 		return nullValue, err
 	} else if b != '\r' {
 		return nullValue, &errProtocol{"invalid bulk line ending"}
 	}
-	if b, err := rd.bufrd.ReadByte(); err != nil {
+	if b, err := rd.readByte(); err != nil {
 		return nullValue, err
 	} else if b != '\n' {
 		return nullValue, &errProtocol{"invalid bulk line ending"}
 	}
-	return Value{'$', string(bline)}, nil
+	return Value{'$', string(bline), nil}, nil
 }
 
 func (rd *Reader) readArray() (Value, error) {
@@ -352,11 +399,11 @@ func (rd *Reader) readArrayOrMultiBulk(multibulk bool) (Value, error) {
 		return nullValue, &errProtocol{"invalid array length"}
 	}
 	if n < 0 {
-		return Value{'*', nil}, nil
+		return Value{'*', nil, nil}, nil
 	}
 	values := make([]Value, int(n))
 	for i := 0; i < len(values); i++ {
-		b, err := rd.bufrd.ReadByte()
+		b, err := rd.readByte()
 		if err != nil {
 			return nullValue, err
 		}
@@ -386,7 +433,7 @@ func (rd *Reader) readArrayOrMultiBulk(multibulk bool) (Value, error) {
 		}
 		values[i] = v
 	}
-	return Value{'*', values}, nil
+	return Value{'*', values, nil}, nil
 }
 
 func formSingleLine(s string) string {
@@ -411,25 +458,25 @@ func formSingleLine(s string) string {
 }
 
 // SimpleStringValue returns a RESP simple string. A simple string has no new lines. The carriage return and new line characters are replaced with spaces.
-func SimpleStringValue(s string) Value { return Value{'+', formSingleLine(s)} }
+func SimpleStringValue(s string) Value { return Value{'+', formSingleLine(s), nil} }
 
 // BytesValue returns a RESP bulk string. A bulk string can represent any data.
-func BytesValue(b []byte) Value { return Value{'$', string(b)} }
+func BytesValue(b []byte) Value { return Value{'$', string(b), nil} }
 
 // StringValue returns a RESP bulk string. A bulk string can represent any data.
-func StringValue(s string) Value { return Value{'$', s} }
+func StringValue(s string) Value { return Value{'$', s, nil} }
 
 // NullValue returns a RESP null bulk string.
-func NullValue() Value { return Value{'$', nil} }
+func NullValue() Value { return Value{'$', nil, nil} }
 
 // ErrorValue returns a RESP error.
-func ErrorValue(err error) Value { return Value{'-', err} }
+func ErrorValue(err error) Value { return Value{'-', err, nil} }
 
 // IntegerValue returns a RESP integer.
-func IntegerValue(i int) Value { return Value{':', i} }
+func IntegerValue(i int) Value { return Value{':', i, nil} }
 
 // ArrayValue returns a RESP array.
-func ArrayValue(vals []Value) Value { return Value{'*', vals} }
+func ArrayValue(vals []Value) Value { return Value{'*', vals, nil} }
 
 // MultiBulkValue returns a RESP array which contains one or more bulk strings.
 // For more information on RESP arrays and strings please see http://redis.io/topics/protocol.
