@@ -11,6 +11,13 @@ While the protocol was designed specifically for Redis, it can be used for other
 
 The RESP protocol has the advantages of being human readable and with performance of a binary protocol.
 
+Features
+--------
+
+- [Reader](#reader) and [Writer](#writer) types for streaming RESP values from files, networks, or byte streams.
+- [Server Implementation](#server) for creating your own RESP server. [Clients](#clients) use the same tools and libraries as Redis.
+- [Append-only File](#append-only-file) type for persisting RESP values to disk. 
+
 Installation
 ------------
 
@@ -25,8 +32,8 @@ Documentation
 
 - [API Reference](http://godoc.org/github.com/tidwall/resp)
 
-Example Server
---------------
+Server
+------
 
 A Redis clone that implements the SET and GET commands.
 
@@ -79,6 +86,92 @@ func main() {
         log.Fatal(err)
     }
 }
+```
+
+Reader
+------
+
+The resp Reader type allows for an application to read raw RESP values from a file, network, or byte stream.
+
+```go
+raw := "*3\r\n$3\r\nset\r\n$6\r\nleader\r\n$7\r\nCharlie\r\n"
+raw += "*3\r\n$3\r\nset\r\n$8\r\nfollower\r\n$6\r\nSkyler\r\n"
+rd := resp.NewReader(bytes.NewBufferString(raw))
+for {
+    v, _, err := rd.ReadValue()
+    if err == io.EOF {
+        break
+    }
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Read %s\n", v.Type())
+    if v.Type() == Array {
+        for i, v := range v.Array() {
+            fmt.Printf("  #%d %s, value: '%s'\n", i, v.Type(), v)
+        }
+    }
+}
+// Output:
+// Read Array
+//   #0 BulkString, value: 'set'
+//   #1 BulkString, value: 'leader'
+//   #2 BulkString, value: 'Charlie'
+// Read Array
+//   #0 BulkString, value: 'set'
+//   #1 BulkString, value: 'follower'
+//   #2 BulkString, value: 'Skyler'
+```
+
+Writer
+------
+
+The resp Writer type allows for an application to write raw RESP values to a file, network, or byte stream.
+
+```go
+var buf bytes.Buffer
+wr := resp.NewWriter(&buf)
+wr.WriteArray([]resp.Value{resp.StringValue("set"), resp.StringValue("leader"), resp.StringValue("Charlie")})
+wr.WriteArray([]resp.Value{resp.StringValue("set"), resp.StringValue("follower"), resp.StringValue("Skyler")})
+fmt.Printf("%s", strings.Replace(buf.String(), "\r\n", "\\r\\n", -1))
+// Output:
+// *3\r\n$3\r\nset\r\n$6\r\nleader\r\n$7\r\nCharlie\r\n
+// *3\r\n$3\r\nset\r\n$8\r\nfollower\r\n$6\r\nSkyler\r\n
+```
+
+Append-Only File
+----------------
+
+An append only file (AOF) allows your application to  persist values to disk. It's very easy to use, and includes the same level of durablilty and binary format as [Redis AOF Persistence](http://redis.io/topics/persistence).
+
+Check out the [AOF documentation](https://godoc.org/github.com/tidwall/resp#AOF) for more information
+
+```go
+// create and fill an appendonly file
+aof, err := resp.OpenAOF("appendonly.aof")
+if err != nil {
+    log.Fatal(err)
+}
+// append a couple values and close the file
+aof.Append(resp.MultiBulkValue("set", "leader", "Charlie"))
+aof.Append(resp.MultiBulkValue("set", "follower", "Skyler"))
+aof.Close()
+
+// reopen and scan all values
+aof, err = resp.OpenAOF("appendonly.aof")
+if err != nil {
+    log.Fatal(err)
+}
+defer aof.Close()
+aof.Scan(func(v Value) {
+    fmt.Printf("%s\n", v.String())
+})
+
+// Output:
+// [set leader Charlie]
+// [set follower Skyler]
+}
+
 ```
 
 Clients

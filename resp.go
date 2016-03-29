@@ -17,9 +17,20 @@ func (err errProtocol) Error() string {
 	return "Protocol error: " + err.msg
 }
 
+// Type represents a Value type
+type Type byte
+
+const (
+	SimpleString Type = '+'
+	Error        Type = '-'
+	Integer      Type = ':'
+	BulkString   Type = '$'
+	Array        Type = '*'
+)
+
 // Value represents the data of a valid RESP type.
 type Value struct {
-	typ  byte        // the RESP type
+	typ  Type        // the RESP type
 	base interface{} // underlying base value
 	buf  []byte      // exact bytes representation when parsed.
 }
@@ -98,8 +109,26 @@ func (v Value) Array() []Value {
 //   ':'  Integer
 //   '$'  BulkString
 //   '*'  Array
-func (v Value) Type() byte {
+func (v Value) Type() Type {
 	return v.typ
+}
+
+// TypeName returns name of the underlying RESP type.
+func (t Type) String() string {
+	switch t {
+	default:
+		return "Unknown"
+	case '+':
+		return "SimpleString"
+	case '-':
+		return "Error"
+	case ':':
+		return "Integer"
+	case '$':
+		return "BulkString"
+	case '*':
+		return "Array"
+	}
 }
 
 // MarshalRESP returns the original serialized byte representation of Value.
