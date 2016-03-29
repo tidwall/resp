@@ -36,9 +36,6 @@ func TestLotsaRandomness(t *testing.T) {
 		if string(resp) != anys[i] {
 			t.Fatalf("resp failed to remarshal #%d\n-- original --\n%s\n-- remarshalled --\n%s\n-- done --", i, anys[i], string(resp))
 		}
-		if &resp[0] != &v.buf[0] {
-			t.Fatalf("resp failed to used original buffer #%d\n", i)
-		}
 	}
 }
 
@@ -118,4 +115,31 @@ func randRESPAny() string {
 		return randRESPArray()
 	}
 	panic("?")
+}
+
+func BenchmarkRead(b *testing.B) {
+	n := 1000
+	var buf bytes.Buffer
+	for k := 0; k < n; k++ {
+		buf.WriteString(randRESPAny())
+	}
+	bb := buf.Bytes()
+	b.ResetTimer()
+	var j int
+	var r *Reader
+	//start := time.Now()
+	var k int
+	for i := 0; i < b.N; i++ {
+		if j == 0 {
+			r = NewReader(bytes.NewBuffer(bb))
+			j = n
+		}
+		_, _, err := r.ReadValue()
+		if err != nil {
+			b.Fatal(err)
+		}
+		j--
+		k++
+	}
+	//fmt.Printf("\n%f\n", float64(k)/(float64(time.Now().Sub(start))/float64(time.Second)))
 }
