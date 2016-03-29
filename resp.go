@@ -140,6 +140,19 @@ func (v Value) MarshalRESP() ([]byte, error) {
 	}
 }
 
+// Equals compares one value to another value.
+func (v Value) Equals(value Value) bool {
+	data1, err := v.MarshalRESP()
+	if err != nil {
+		return false
+	}
+	data2, err := v.MarshalRESP()
+	if err != nil {
+		return false
+	}
+	return string(data1) == string(data2)
+}
+
 // Reader is a specialized RESP Value type reader.
 type Reader struct {
 	bufrd  *bufio.Reader
