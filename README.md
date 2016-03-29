@@ -133,7 +133,7 @@ var buf bytes.Buffer
 wr := resp.NewWriter(&buf)
 wr.WriteArray([]resp.Value{resp.StringValue("set"), resp.StringValue("leader"), resp.StringValue("Charlie")})
 wr.WriteArray([]resp.Value{resp.StringValue("set"), resp.StringValue("follower"), resp.StringValue("Skyler")})
-fmt.Printf("%s", strings.Replace(buf.String(), "\r\n", "\\r\\n", -1))
+fmt.Printf("%s", buf.String())
 // Output:
 // *3\r\n$3\r\nset\r\n$6\r\nleader\r\n$7\r\nCharlie\r\n
 // *3\r\n$3\r\nset\r\n$8\r\nfollower\r\n$6\r\nSkyler\r\n
