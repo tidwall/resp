@@ -8,6 +8,8 @@ import (
 	"strconv"
 )
 
+const bufsz = 4096
+
 // Type represents a Value type
 type Type byte
 
@@ -221,8 +223,6 @@ type errProtocol struct{ msg string }
 func (err errProtocol) Error() string {
 	return "Protocol error: " + err.msg
 }
-
-const bufsz = 4096
 
 // Reader is a specialized RESP Value type reader.
 type Reader struct {
@@ -475,7 +475,7 @@ func (rd *Reader) readLine() (b []byte, n int, err error) {
 	for {
 		// read byte
 		for l == 0 {
-			if err := rd.fillBuffer(); err != nil {
+			if err := rd.fillBuffer(true); err != nil {
 				return nil, 0, err
 			}
 			l = rd.l - (p - rd.p)
@@ -499,7 +499,7 @@ func (rd *Reader) readBytes(count int) (b []byte, n int, err error) {
 		return nil, 0, errors.New("invalid argument")
 	}
 	for rd.l < count {
-		if err := rd.fillBuffer(); err != nil {
+		if err := rd.fillBuffer(false); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -511,7 +511,7 @@ func (rd *Reader) readBytes(count int) (b []byte, n int, err error) {
 
 func (rd *Reader) readByte() (c byte, n int, err error) {
 	for rd.l < 1 {
-		if err := rd.fillBuffer(); err != nil {
+		if err := rd.fillBuffer(false); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -535,7 +535,7 @@ func (rd *Reader) unreadByte(c byte) {
 	rd.s = rd.l
 }
 
-func (rd *Reader) fillBuffer() error {
+func (rd *Reader) fillBuffer(ignoreRebuffering bool) error {
 	if rd.rerr != nil {
 		return rd.rerr
 	}
@@ -543,7 +543,7 @@ func (rd *Reader) fillBuffer() error {
 	n, err := rd.rd.Read(buf)
 	rd.rerr = err
 	if n > 0 {
-		if rd.l == 0 {
+		if !ignoreRebuffering && rd.l == 0 {
 			rd.l = n
 			rd.s = n
 			rd.p = 0
