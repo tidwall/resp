@@ -11,9 +11,98 @@ import (
 	"testing"
 )
 
+func TestIntegers(t *testing.T) {
+	var n, rn int
+	var v Value
+	var err error
+	data := []byte(":1234567\r\n:-90898\r\n:0\r\n")
+	r := NewReader(bytes.NewBuffer(data))
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Integer() != 1234567 {
+		t.Fatalf("invalid integer: expected %d, got %d", 1234567, v.Integer())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Integer() != -90898 {
+		t.Fatalf("invalid integer: expected %d, got %d", -90898, v.Integer())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Integer() != 0 {
+		t.Fatalf("invalid integer: expected %d, got %d", 0, v.Integer())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != io.EOF {
+		t.Fatalf("invalid error: expected %v, got %v", io.EOF, err)
+	}
+	if n != len(data) {
+		t.Fatalf("invalid read count: expected %d, got %d", len(data), n)
+	}
+}
+
+func TestFloats(t *testing.T) {
+	var n, rn int
+	var v Value
+	var err error
+	data := []byte(":1234567\r\n+-90898\r\n$6\r\n12.345\r\n-90284.987\r\n")
+	r := NewReader(bytes.NewBuffer(data))
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Float() != 1234567 {
+		t.Fatalf("invalid integer: expected %v, got %v", 1234567, v.Float())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Float() != -90898 {
+		t.Fatalf("invalid integer: expected %v, got %v", -90898, v.Float())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Float() != 12.345 {
+		t.Fatalf("invalid integer: expected %v, got %v", 12.345, v.Float())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Float() != 90284.987 {
+		t.Fatalf("invalid integer: expected %v, got %v", 90284.987, v.Float())
+	}
+	v, rn, err = r.ReadValue()
+	n += rn
+	if err != io.EOF {
+		t.Fatalf("invalid error: expected %v, got %v", io.EOF, err)
+	}
+	if n != len(data) {
+		t.Fatalf("invalid read count: expected %d, got %d", len(data), n)
+	}
+}
+
 // TestLotsaRandomness does generates N resp messages and reads the values though a Reader.
 // It then marshals the values back to strings and compares to the original.
 // All data and resp types are random.
+
 func TestLotsaRandomness(t *testing.T) {
 	n := 10000
 	var anys []string

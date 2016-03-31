@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestABC(t *testing.T) {
+func TestAOF(t *testing.T) {
 	defer func() {
 		os.RemoveAll("aof.tmp")
 	}()
