@@ -61,17 +61,18 @@ func (v Value) Integer() int {
 
 // String converts Value to a string.
 func (v Value) String() string {
-
+	if v.typ == '$' {
+		return string(v.str)
+	}
 	switch v.typ {
-	default:
-		return ""
-	case '$', '+', '-':
+	case '+', '-':
 		return string(v.str)
 	case ':':
 		return strconv.FormatInt(int64(v.integer), 10)
 	case '*':
 		return fmt.Sprintf("%v", v.array)
 	}
+	return ""
 }
 
 // Bytes converts the Value to a byte array. An empty string is converted to a non-nil empty byte array. If it's a RESP Null value, nil is returned.
@@ -203,7 +204,7 @@ func (v Value) Equals(value Value) bool {
 	if err != nil {
 		return false
 	}
-	data2, err := v.MarshalRESP()
+	data2, err := value.MarshalRESP()
 	if err != nil {
 		return false
 	}
