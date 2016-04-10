@@ -56,4 +56,30 @@ func TestAOF(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+
+	var multi []Value
+	for i := 0; i < 50; i++ {
+		multi = append(multi, StringValue(fmt.Sprintf("hello multi world #%d\n", i)))
+	}
+	if err := f.AppendMulti(multi); err != nil {
+		t.Fatal(err)
+	}
+
+	skip := i
+	i = 0
+	j := 0
+	if err := f.Scan(func(v Value) {
+		if i >= skip {
+			s := v.String()
+			e := fmt.Sprintf("hello multi world #%d\n", j)
+			if s != e {
+				t.Fatalf("#%d is '%s', expect '%s'", j, s, e)
+			}
+			j++
+		}
+		i++
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 }
