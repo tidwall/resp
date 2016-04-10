@@ -663,6 +663,10 @@ func MultiBulkValue(commandName string, args ...interface{}) Value {
 	vals := make([]Value, len(args)+1)
 	vals[0] = StringValue(commandName)
 	for i, arg := range args {
+		if rval, ok := arg.(Value); ok && rval.Type() == BulkString {
+			vals[i+1] = rval
+			continue
+		}
 		switch arg := arg.(type) {
 		default:
 			vals[i+1] = StringValue(fmt.Sprintf("%v", arg))
