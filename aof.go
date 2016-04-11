@@ -54,7 +54,6 @@ func OpenAOF(path string) (*AOF, error) {
 	aof.policy = EverySecond
 	go func() {
 		for {
-			time.Sleep(time.Second)
 			aof.mu.Lock()
 			if aof.closed {
 				aof.mu.Unlock()
@@ -64,6 +63,7 @@ func OpenAOF(path string) (*AOF, error) {
 				aof.f.Sync()
 			}
 			aof.mu.Unlock()
+			time.Sleep(time.Second)
 		}
 	}()
 	return aof, nil
