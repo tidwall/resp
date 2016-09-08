@@ -1,6 +1,7 @@
 package resp
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -227,15 +228,12 @@ func (err errProtocol) Error() string {
 
 // Reader is a specialized RESP Value type reader.
 type Reader struct {
-	rd      io.Reader
-	buf     []byte
-	p, l, s int
-	rerr    error
+	rd *bufio.Reader
 }
 
 // NewReader returns a Reader for reading Value types.
 func NewReader(rd io.Reader) *Reader {
-	r := &Reader{rd: rd}
+	r := &Reader{rd: bufio.NewReader(rd)}
 	return r
 }
 
@@ -255,13 +253,13 @@ func (rd *Reader) ReadMultiBulk() (value Value, telnet bool, n int, err error) {
 func (rd *Reader) readValue(multibulk, child bool) (val Value, telnet bool, n int, err error) {
 	var rn int
 	var c byte
-	c, rn, err = rd.readByte()
-	n += rn
+	c, err = rd.rd.ReadByte()
 	if err != nil {
 		return nullValue, false, n, err
 	}
+	n++
 	if c == '*' {
-		val, n, err = rd.readArrayValue(multibulk)
+		val, rn, err = rd.readArrayValue(multibulk)
 	} else if multibulk && !child {
 		telnet = true
 	} else {
@@ -275,16 +273,17 @@ func (rd *Reader) readValue(multibulk, child bool) (val Value, telnet bool, n in
 			}
 			telnet = true
 		case '-', '+':
-			val, n, err = rd.readSimpleValue(c)
+			val, rn, err = rd.readSimpleValue(c)
 		case ':':
-			val, n, err = rd.readIntegerValue()
+			val, rn, err = rd.readIntegerValue()
 		case '$':
-			val, n, err = rd.readBulkValue()
+			val, rn, err = rd.readBulkValue()
 		}
 	}
 	if telnet {
-		rd.unreadByte(c)
-		val, n, err = rd.readTelnetMultiBulk()
+		n--
+		rd.rd.UnreadByte()
+		val, rn, err = rd.readTelnetMultiBulk()
 		if err == nil {
 			telnet = true
 		}
@@ -297,17 +296,16 @@ func (rd *Reader) readValue(multibulk, child bool) (val Value, telnet bool, n in
 }
 
 func (rd *Reader) readTelnetMultiBulk() (v Value, n int, err error) {
-	var rn int
 	values := make([]Value, 0, 8)
 	var c byte
 	var bline []byte
 	var quote, mustspace bool
 	for {
-		c, rn, err = rd.readByte()
-		n += rn
+		c, err = rd.rd.ReadByte()
 		if err != nil {
 			return nullValue, n, err
 		}
+		n += 1
 		if c == '\n' {
 			if len(bline) > 0 && bline[len(bline)-1] == '\r' {
 				bline = bline[:len(bline)-1]
@@ -354,7 +352,20 @@ func (rd *Reader) readSimpleValue(typ byte) (val Value, n int, err error) {
 	}
 	return Value{typ: Type(typ), str: line}, n, nil
 }
-
+func (rd *Reader) readLine() (line []byte, n int, err error) {
+	for {
+		b, err := rd.rd.ReadBytes('\n')
+		if err != nil {
+			return nil, 0, err
+		}
+		n += len(b)
+		line = append(line, b...)
+		if len(line) >= 2 && line[len(line)-2] == '\r' {
+			break
+		}
+	}
+	return line[:len(line)-2], n, nil
+}
 func (rd *Reader) readBulkValue() (val Value, n int, err error) {
 	var rn int
 	var l int
@@ -372,8 +383,8 @@ func (rd *Reader) readBulkValue() (val Value, n int, err error) {
 	if l > 512*1024*1024 {
 		return nullValue, n, &errProtocol{"invalid bulk length"}
 	}
-	var b []byte
-	b, rn, err = rd.readBytes(l + 2)
+	b := make([]byte, l+2)
+	rn, err = io.ReadFull(rd.rd, b)
 	n += rn
 	if err != nil {
 		return nullValue, n, err
@@ -427,136 +438,15 @@ func (rd *Reader) readIntegerValue() (val Value, n int, err error) {
 }
 
 func (rd *Reader) readInt() (x int, n int, err error) {
-	var rn int
-	var c byte
-	neg := 1
-	c, rn, err = rd.readByte()
-	n += rn
+	line, n, err := rd.readLine()
+	if err != nil {
+		return 0, 0, err
+	}
+	i64, err := strconv.ParseInt(string(line), 10, 64)
 	if err != nil {
 		return 0, n, err
 	}
-	if c == '-' {
-		neg = -1
-		c, rn, err = rd.readByte()
-		n += rn
-		if err != nil {
-			return 0, n, err
-		}
-	}
-	var length int
-	for {
-		switch c {
-		default:
-			return 0, n, &errProtocol{"invalid length"}
-		case '\r':
-			c, rn, err = rd.readByte()
-			n += rn
-			if err != nil {
-				return 0, n, err
-			}
-			if c != '\n' {
-				return 0, n, &errProtocol{"invalid length"}
-			}
-			return length * neg, n, nil
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			length = (length * 10) + int(c-'0')
-		}
-		c, rn, err = rd.readByte()
-		n += rn
-		if err != nil {
-			return 0, n, err
-		}
-	}
-}
-
-func (rd *Reader) readLine() (b []byte, n int, err error) {
-	var lc byte
-	p := rd.p
-	l := rd.l
-	for {
-		// read byte
-		for l == 0 {
-			if err := rd.fillBuffer(true); err != nil {
-				return nil, 0, err
-			}
-			l = rd.l - (p - rd.p)
-		}
-		c := rd.buf[p]
-		p++
-		l--
-		n++
-		if c == '\n' && lc == '\r' {
-			b = rd.buf[rd.p : rd.p+n-2]
-			rd.p = p
-			rd.l -= n
-			return b, n, nil
-		}
-		lc = c
-	}
-}
-
-func (rd *Reader) readBytes(count int) (b []byte, n int, err error) {
-	if count < 0 {
-		return nil, 0, errors.New("invalid argument")
-	}
-	for rd.l < count {
-		if err := rd.fillBuffer(false); err != nil {
-			return nil, 0, err
-		}
-	}
-	b = rd.buf[rd.p : rd.p+count]
-	rd.p += count
-	rd.l -= count
-	return b, count, nil
-}
-
-func (rd *Reader) readByte() (c byte, n int, err error) {
-	for rd.l < 1 {
-		if err := rd.fillBuffer(false); err != nil {
-			return 0, 0, err
-		}
-	}
-	c = rd.buf[rd.p]
-	rd.p++
-	rd.l--
-	return c, 1, nil
-}
-
-func (rd *Reader) unreadByte(c byte) {
-	if rd.p > 0 {
-		rd.p--
-		rd.l++
-		rd.buf[rd.p] = c
-		return
-	}
-	buf := make([]byte, rd.l+1)
-	buf[0] = c
-	copy(buf[1:], rd.buf[:rd.l])
-	rd.l++
-	rd.s = rd.l
-}
-
-func (rd *Reader) fillBuffer(ignoreRebuffering bool) error {
-	if rd.rerr != nil {
-		return rd.rerr
-	}
-	buf := make([]byte, bufsz)
-	n, err := rd.rd.Read(buf)
-	rd.rerr = err
-	if n > 0 {
-		if !ignoreRebuffering && rd.l == 0 {
-			rd.l = n
-			rd.s = n
-			rd.p = 0
-			rd.buf = buf
-		} else {
-			rd.buf = append(rd.buf, buf[:n]...)
-			rd.s += n
-			rd.l += n
-		}
-		return nil
-	}
-	return rd.rerr
+	return int(i64), n, nil
 }
 
 // AnyValue returns a RESP value from an interface. This function infers the types. Arrays are not allowed.

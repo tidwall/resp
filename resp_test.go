@@ -142,6 +142,54 @@ func TestLotsaRandomness(t *testing.T) {
 		}
 	}
 }
+func TestBigFragmented(t *testing.T) {
+	b := make([]byte, 10*1024*1024)
+	if _, err := rand.Read(b); err != nil {
+		t.Fatal(err)
+	}
+	cmd := []byte("*3\r\n$3\r\nSET\r\n$3\r\nKEY\r\n$" + strconv.FormatInt(int64(len(b)), 10) + "\r\n" + string(b) + "\r\n")
+	cmdlen := len(cmd)
+	pr, pw := io.Pipe()
+	frag := 1024
+	go func() {
+		defer pw.Close()
+		for len(cmd) >= frag {
+			if _, err := pw.Write(cmd[:frag]); err != nil {
+				t.Fatal(err)
+			}
+			cmd = cmd[frag:]
+		}
+		if len(cmd) > 0 {
+			if _, err := pw.Write(cmd); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}()
+	r := NewReader(pr)
+	value, telnet, n, err := r.ReadMultiBulk()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != cmdlen {
+		t.Fatalf("expected %v, got %v", cmdlen, n)
+	}
+	if telnet {
+		t.Fatalf("expected false, got true")
+	}
+	arr := value.Array()
+	if len(arr) != 3 {
+		t.Fatalf("expected 3, got %v", len(arr))
+	}
+	if arr[0].String() != "SET" {
+		t.Fatalf("expected 'SET', got %v", arr[0].String())
+	}
+	if arr[1].String() != "KEY" {
+		t.Fatalf("expected 'KEY', got %v", arr[0].String())
+	}
+	if bytes.Compare(arr[2].Bytes(), b) != 0 {
+		t.Fatal("bytes not equal")
+	}
+}
 
 func TestAnyValues(t *testing.T) {
 	var vs = []interface{}{
