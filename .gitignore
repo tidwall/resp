@@ -2,3 +2,4 @@
 aof.tmp
 appendonly.aof
 coverage.out
+.idea

@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"bufio"
 )
 
 // SyncPolicy represents a file's fsync policy.
@@ -37,6 +38,7 @@ var errClosed = errors.New("closed")
 type AOF struct {
 	mu     sync.Mutex
 	f      *os.File
+	buf    *bufio.Writer
 	closed bool
 	rd     *Reader
 	policy SyncPolicy
@@ -51,6 +53,7 @@ func OpenAOF(path string) (*AOF, error) {
 	if err != nil {
 		return nil, err
 	}
+	aof.buf = bufio.NewWriter(aof.f)
 	aof.policy = EverySecond
 	go func() {
 		for {
@@ -60,6 +63,7 @@ func OpenAOF(path string) (*AOF, error) {
 				return
 			}
 			if aof.policy == EverySecond {
+				aof.buf.Flush()
 				aof.f.Sync()
 			}
 			aof.mu.Unlock()
@@ -95,6 +99,7 @@ func (aof *AOF) Close() error {
 	if aof.closed {
 		return errClosed
 	}
+	aof.buf.Flush()
 	aof.f.Close()
 	aof.closed = true
 	return nil
@@ -155,11 +160,12 @@ func (aof *AOF) AppendMulti(vs []Value) error {
 			return err
 		}
 	}
-	_, err := aof.f.Write(bs)
+	_, err := aof.buf.Write(bs)
 	if err != nil {
 		return err
 	}
 	if aof.policy == Always {
+		aof.buf.Flush()
 		aof.f.Sync()
 	}
 	return nil

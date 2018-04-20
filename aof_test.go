@@ -38,9 +38,8 @@ func TestAOF(t *testing.T) {
 	}
 	f.SetSyncPolicy(99)
 	f.SetSyncPolicy(Never)
+	f.SetSyncPolicy(EverySecond)
 	f.SetSyncPolicy(Always)
-	f.SetSyncPolicy(EverySecond)
-	f.SetSyncPolicy(EverySecond)
 	for i := 0; i < 12345; i++ {
 		if err := f.Append(StringValue(fmt.Sprintf("hello world #%d\n", i))); err != nil {
 			t.Fatal(err)
@@ -60,6 +59,7 @@ func TestAOF(t *testing.T) {
 	f.Close()
 	f.Close() // Test closing twice
 	f, err = OpenAOF("aof.tmp/aof")
+	f.SetSyncPolicy(Always)
 	if err != nil {
 		t.Fatal(err)
 	}
