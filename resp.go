@@ -489,6 +489,18 @@ func AnyValue(v interface{}) Value {
 	}
 }
 
+// AnyValueWithArray returns a RESP value from an interface and allows Arrays.
+func AnyValueWithArray(v interface{}) Value {
+	if vs, ok := v.([]interface{}); ok {
+		var values []Value
+		for _, v := range vs {
+			values = append(values, AnyValueWithArray(v))
+		}
+		return ArrayValue(values)
+	}
+	return AnyValue(v)
+}
+
 // SimpleStringValue returns a RESP simple string. A simple string has no new lines. The carriage return and new line characters are replaced with spaces.
 func SimpleStringValue(s string) Value { return Value{typ: '+', str: []byte(formSingleLine(s))} }
 
