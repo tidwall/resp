@@ -1,7 +1,8 @@
+**This project has been archived. If you are looking for a high-performance Redis server for Go, please checkout [Redcon](https://github.com/tidwall/redcon). It's much faster than this implementation and can handle pipelining.**
+
 RESP
 ====
 
-[![Build Status](https://travis-ci.org/tidwall/resp.svg?branch=master)](https://travis-ci.org/tidwall/resp)
 [![GoDoc](https://godoc.org/github.com/tidwall/resp?status.svg)](https://godoc.org/github.com/tidwall/resp)
 
 RESP is a [Go](http://golang.org/) library that provides a reader, writer, and server implementation for the [Redis RESP Protocol](http://redis.io/topics/protocol).
@@ -11,7 +12,6 @@ While the protocol was designed specifically for Redis, it can be used for other
 
 The RESP protocol has the advantages of being human readable and with performance of a binary protocol.
 
-\*\* **Note: If you are looking for a high-performance Redis server for Go, please checkout [Redcon](https://github.com/tidwall/redcon). It's much faster than this implementation and can handle pipelining.** \*\*
 
 Features
 --------
