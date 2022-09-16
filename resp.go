@@ -125,11 +125,12 @@ func (v Value) Array() []Value {
 }
 
 // Type returns the underlying RESP type. The following types are represent valid RESP values.
-//   '+'  SimpleString
-//   '-'  Error
-//   ':'  Integer
-//   '$'  BulkString
-//   '*'  Array
+//
+//	'+'  SimpleString
+//	'-'  Error
+//	':'  Integer
+//	'$'  BulkString
+//	'*'  Array
 func (v Value) Type() Type {
 	return v.typ
 }
@@ -506,7 +507,7 @@ func ErrorValue(err error) Value {
 	if err == nil {
 		return Value{typ: '-'}
 	}
-	return Value{typ: '-', str: []byte(err.Error())}
+	return Value{typ: '-', str: []byte(formSingleLine(err.Error()))}
 }
 
 // IntegerValue returns a RESP integer.
@@ -527,24 +528,23 @@ func FloatValue(f float64) Value { return StringValue(strconv.FormatFloat(f, 'f'
 func ArrayValue(vals []Value) Value { return Value{typ: '*', array: vals} }
 
 func formSingleLine(s string) string {
-	bs1 := []byte(s)
-	for i := 0; i < len(bs1); i++ {
-		switch bs1[i] {
-		case '\r', '\n':
-			bs2 := make([]byte, len(bs1))
-			copy(bs2, bs1)
-			bs2[i] = ' '
-			i++
-			for ; i < len(bs2); i++ {
-				switch bs1[i] {
-				case '\r', '\n':
-					bs2[i] = ' '
-				}
-			}
-			return string(bs2)
+	var clean bool
+	for i := 0; i < len(s); i++ {
+		if s[i] < ' ' {
+			clean = true
+			break
 		}
 	}
-	return s
+	if !clean {
+		return s
+	}
+	b := []byte(s)
+	for i := 0; i < len(b); i++ {
+		if b[i] < ' ' {
+			b[i] = ' '
+		}
+	}
+	return string(b)
 }
 
 // MultiBulkValue returns a RESP array which contains one or more bulk strings.
